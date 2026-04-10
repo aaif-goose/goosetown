@@ -1,7 +1,7 @@
 # Welcome to Goosetown!
 
 <p align="center">
-  <img src="goosetown.png" alt="Goosetown — a steampunk village of industrious geese" style="max-width: 720px; width: 100%;" />
+  <img src="goosetown.jpg" alt="Goosetown — a steampunk village of industrious geese" style="max-width: 720px; width: 100%;" />
 </p>
 
 <p align="center"><em>A tiny town that ships.</em></p>
