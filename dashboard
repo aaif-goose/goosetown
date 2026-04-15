@@ -9,6 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DB_PATH="$HOME/.local/share/goose/sessions/sessions.db"
 WALLS_DIR="$HOME/.goosetown/walls"
+BIND_HOST="${GOOSETOWN_BIND_HOST:-127.0.0.1}"
 PORT_MIN=4242
 PORT_MAX=4300
 
@@ -65,7 +66,7 @@ resolve_wall() {
 }
 
 # ── Port helpers ────────────────────────────────────────────────────────────
-port_free() { ! (echo >/dev/tcp/127.0.0.1/"$1") 2>/dev/null; }
+port_free() { ! (echo >/dev/tcp/"$BIND_HOST"/"$1") 2>/dev/null; }
 
 find_free_port() {
   for p in $(seq $PORT_MIN $PORT_MAX); do
@@ -85,7 +86,7 @@ find_mine() {
   port=$(<"$PORTFILE")
   [[ -n "$port" ]] || return 1
   # Verify it's actually responding
-  if curl -sf "http://localhost:$port/api/config" >/dev/null 2>&1; then
+  if curl -sf "http://$BIND_HOST:$port/api/config" >/dev/null 2>&1; then
     echo "$port"
     return 0
   fi
@@ -154,16 +155,16 @@ cmd_launch() {
   port=$(find_free_port) || { echo "ERROR: All ports $PORT_MIN-$PORT_MAX busy" >&2; exit 3; }
 
   info "Launching dashboard on port $port (instance $WALL_ID, session ${session_id:0:12}...)"
-  screen -dmS "$SCREEN_NAME" bash -c "cd '$SCRIPT_DIR' && uv run scripts/goosetown-ui --session '$session_id' --wall '$wall_file' --port '$port'"
+  screen -dmS "$SCREEN_NAME" bash -c "cd '$SCRIPT_DIR' && uv run scripts/goosetown-ui --host '$BIND_HOST' --session '$session_id' --wall '$wall_file' --port '$port'"
 
   # Wait for server readiness, then write portfile. Writing after readiness avoids a
   # race where a concurrent call sees the portfile, fails the curl check, and deletes
   # it — orphaning the server that's still starting up.
   for _ in 1 2 3 4 5; do
     sleep 1
-    if curl -sf "http://localhost:$port/api/config" >/dev/null 2>&1; then
+    if curl -sf "http://$BIND_HOST:$port/api/config" >/dev/null 2>&1; then
       echo "$port" > "$PORTFILE"
-      info "✅ Dashboard ready at http://localhost:$port"
+      info "✅ Dashboard ready at http://$BIND_HOST:$port"
       echo "$port"
       return 0
     fi
@@ -180,9 +181,9 @@ cmd_open() {
   local port
   port=$(find_mine) || return 0
   if command -v open &>/dev/null; then
-    open "http://localhost:$port"
+    open "http://$BIND_HOST:$port"
   elif command -v xdg-open &>/dev/null; then
-    xdg-open "http://localhost:$port"
+    xdg-open "http://$BIND_HOST:$port"
   fi
 }
 

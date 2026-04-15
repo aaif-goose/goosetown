@@ -572,6 +572,7 @@ async def start_background_tasks():
 def main():
     parser = argparse.ArgumentParser(description="goosetown-ui dashboard server")
     parser.add_argument("--session", help="Parent session ID (auto-detect if omitted)")
+    parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=4242, help="Port (default: 4242)")
     parser.add_argument("--wall", help="Wall file path (auto-detect if omitted)")
     args = parser.parse_args()
@@ -602,8 +603,8 @@ def main():
         "port": args.port,
     })
 
-    print(f"\n🏭 gooseTown dashboard: http://localhost:{args.port}/\n", file=sys.stderr)
-    uvicorn.run(create_app(), host="127.0.0.1", port=args.port, log_level="warning")
+    print(f"\n🏭 gooseTown dashboard: http://{args.host}:{args.port}/\n", file=sys.stderr)
+    uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning")
 
 
 if __name__ == "__main__":
