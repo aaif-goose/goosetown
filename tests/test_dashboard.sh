@@ -61,8 +61,8 @@ test_status_no_server() {
 test_start_requires_deps() {
     echo "test_start_requires_deps"
     # Check if required commands exist
-    if ! command -v screen &>/dev/null; then
-        skip "start test" "screen not installed"
+    if ! command -v tmux &>/dev/null && ! command -v screen &>/dev/null; then
+        skip "start test" "neither tmux nor screen installed"
         return
     fi
     if ! command -v lsof &>/dev/null; then

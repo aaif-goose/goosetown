@@ -2,8 +2,8 @@
 # dashboard — Launch goosetown dashboard. Idempotent. Port on stdout, noise on stderr.
 #
 # Multi-instance safe: each goose instance (identified by GOOSE_GTWALL_FILE)
-# gets its own dashboard. Instances never interfere with each other — no shared screen
-# names, no global pkill, no "stale session" replacement.
+# gets its own dashboard. Instances never interfere with each other — no shared
+# session names, no global pkill, no "stale session" replacement.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -18,15 +18,25 @@ info() { echo "$*" >&2; }
 
 command -v uv &>/dev/null || die "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
 
+# ── Multiplexer detection ──────────────────────────────────────────────────
+# Prefer tmux, fall back to screen.
+if command -v tmux &>/dev/null; then
+  MUX=tmux
+elif command -v screen &>/dev/null; then
+  MUX=screen
+else
+  die "tmux or screen required but neither found"
+fi
+
 # ── Instance identity ───────────────────────────────────────────────────────
 # GOOSE_GTWALL_FILE points to the wall file for this goose instance. Extract the
-# WALL_ID from the filename to scope screen sessions and portfiles so multiple
+# WALL_ID from the filename to scope session names and portfiles so multiple
 # dashboards can coexist.
 [[ -n "${GOOSE_GTWALL_FILE:-}" ]] || die2 "GOOSE_GTWALL_FILE not set"
-# Sanitize to safe chars for screen session names and portfiles (must match gtwall's rules)
+# Sanitize to safe chars for session names and portfiles (must match gtwall's rules)
 WALL_ID=$(basename "$GOOSE_GTWALL_FILE" .log | sed 's/^wall-//' | tr -cd 'A-Za-z0-9_-')
 [[ -n "$WALL_ID" ]] || die2 "Could not derive WALL_ID from GOOSE_GTWALL_FILE"
-SCREEN_NAME="goosetown-ui-${WALL_ID}"
+SESSION_NAME="goosetown-ui-${WALL_ID}"
 PORTFILE="${WALLS_DIR}/dashboard-${WALL_ID}.port"
 
 # ── Session resolution ──────────────────────────────────────────────────────
@@ -98,11 +108,28 @@ find_mine() {
 # Uses -sTCP:LISTEN to avoid killing clients (browsers) with connections to the port.
 kill_mine() {
   local port="${1:-}"
-  screen -S "$SCREEN_NAME" -X quit 2>/dev/null || true
+  mux_kill
   if [[ -n "$port" ]]; then
     lsof -ti :"$port" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
   fi
   rm -f "$PORTFILE"
+}
+
+# ── Multiplexer helpers ─────────────────────────────────────────────────────
+mux_start() {
+  local cmd="$1"
+  if [[ "$MUX" == tmux ]]; then
+    tmux new-session -d -s "$SESSION_NAME" "$cmd"
+  else
+    screen -dmS "$SESSION_NAME" bash -c "$cmd"
+  fi
+}
+mux_kill() {
+  if [[ "$MUX" == tmux ]]; then
+    tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
+  else
+    screen -X -S "$SESSION_NAME" quit 2>/dev/null || true
+  fi
 }
 
 # ── Commands ────────────────────────────────────────────────────────────────
@@ -125,8 +152,8 @@ cmd_stop() {
     kill_mine "$port"
     info "Stopped."
   else
-    # No live dashboard, but clean up any orphaned screen session
-    screen -S "$SCREEN_NAME" -X quit 2>/dev/null || true
+    # No live dashboard, but clean up any orphaned session
+    mux_kill
     rm -f "$PORTFILE"
     info "No running dashboard found (instance $WALL_ID)."
   fi
@@ -146,15 +173,15 @@ cmd_launch() {
     return 0
   fi
 
-  # Clean up any orphaned screen session for this instance (no global pkill)
-  screen -S "$SCREEN_NAME" -X quit 2>/dev/null || true
+  # Clean up any orphaned session for this instance (no global pkill)
+  mux_kill
   sleep 0.3
 
   # Find open port
   port=$(find_free_port) || { echo "ERROR: All ports $PORT_MIN-$PORT_MAX busy" >&2; exit 3; }
 
   info "Launching dashboard on port $port (instance $WALL_ID, session ${session_id:0:12}...)"
-  screen -dmS "$SCREEN_NAME" bash -c "cd '$SCRIPT_DIR' && uv run scripts/goosetown-ui --session '$session_id' --wall '$wall_file' --port '$port'"
+  mux_start "cd '$SCRIPT_DIR' && uv run scripts/goosetown-ui --session '$session_id' --wall '$wall_file' --port '$port'"
 
   # Wait for server readiness, then write portfile. Writing after readiness avoids a
   # race where a concurrent call sees the portfile, fails the curl check, and deletes
@@ -169,8 +196,8 @@ cmd_launch() {
     fi
   done
 
-  # Failed — kill the orphaned screen session so it doesn't leak
-  screen -S "$SCREEN_NAME" -X quit 2>/dev/null || true
+  # Failed — kill the orphaned session so it doesn't leak
+  mux_kill
   echo "ERROR: Dashboard failed to start within 5s. Check logs." >&2
   exit 4
 }
