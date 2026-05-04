@@ -95,7 +95,7 @@ Learn more in [AGENTS.md](AGENTS.md).
 
 ## Acknowledgments
 
-Goosetown was inspired by [Gas Town](https://github.com/gastownhall/gastown), the original multi-agent coordination framework created by [Steve Yegge](https://en.wikipedia.org/wiki/Steve_Yegge). His [blog post announcing Gas Town](https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04) laid out the vision of orchestrating flocks of AI agents — researchers, workers, reviewers — that Goosetown builds on.
+Goosetown was inspired by [Gas Town](https://github.com/gastownhall/gastown), the multi-agent coordination framework created by [Steve Yegge](https://en.wikipedia.org/wiki/Steve_Yegge). His [blog post announcing Gas Town](https://steve-yegge.medium.com/welcome-to-gas-town-4f25ee16dd04) laid out the vision of orchestrating flocks of AI agents — researchers, workers, reviewers — that Goosetown builds on.
 
 ---
 
