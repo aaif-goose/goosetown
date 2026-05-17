@@ -15,7 +15,7 @@ If you have a larger feature in mind or questions about how to approach a fix, p
 
 ```bash
 # Clone the repository
-git clone https://github.com/block/goosetown.git
+git clone https://github.com/aaif-goose/goosetown.git
 cd goosetown
 
 # Install Python dependencies
@@ -84,4 +84,4 @@ git commit -s -m "your message"
 
 If you run into issues or have questions, [open an issue][issues] and we'll be happy to help.
 
-[issues]: https://github.com/block/goosetown/issues
+[issues]: https://github.com/aaif-goose/goosetown/issues
