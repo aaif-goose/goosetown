@@ -361,6 +361,26 @@ async def sessions_tree_watcher():
 
                 # Tree
                 child_ids = find_children(cur, parent_id)
+
+                # Self-heal: a pinned parent with no delegates is usually the wrong
+                # session (e.g. AGENT_SESSION_ID pointed at a terminal session, or
+                # the dashboard launched before the orchestrator existed). Re-resolve
+                # to a delegate-bearing session if one exists. Only adopt a candidate
+                # that actually has children, so we never thrash between empty sessions.
+                if not child_ids:
+                    candidate = find_parent_session(cur)
+                    if candidate and candidate != parent_id:
+                        candidate_children = find_children(cur, candidate)
+                        if candidate_children:
+                            print(
+                                f"🔄 Re-resolved parent session {parent_id} → {candidate} "
+                                f"({len(candidate_children)} delegate(s))",
+                                file=sys.stderr,
+                            )
+                            parent_id = candidate
+                            config["parent_session_id"] = parent_id
+                            child_ids = candidate_children
+
                 sender_map = build_sender_session_map(cur, parent_id)
                 session_to_gtwall = {sid: gid for gid, sid in sender_map.items()}
                 now = time.time()
