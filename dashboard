@@ -53,11 +53,33 @@ resolve_session() {
   local sid="${AGENT_SESSION_ID:-}"
 
   if command -v sqlite3 &>/dev/null && [[ -f "$DB_PATH" ]]; then
-    # Don't trust AGENT_SESSION_ID if it points at a session with no delegates
-    # (e.g. goose exports a *terminal* session id into shell subprocesses). Pinning
-    # such a session leaves the dashboard stuck on "Spawning delegates..." forever
-    # because find_children() never matches. Fall through to discovery instead.
-    if [[ -n "$sid" ]] && ! session_has_delegates "$sid"; then
+    # Prefer the orchestrator bound to THIS instance's wall. Every goosetown on the
+    # machine shares one sessions.db with no instance/wall column, so without scoping
+    # we'd risk pinning a *different* instance's orchestrator. The wall is the per-
+    # instance anchor; an orchestrator launched with this wall records its path in its
+    # messages. WALL_ID is already sanitized to [A-Za-z0-9_-], so it's injection-safe.
+    # (goosetown-ui does the authoritative wall-scoped match; this is a best-effort hint.)
+    if [[ -n "${WALL_ID:-}" ]]; then
+      local wall_scoped
+      wall_scoped=$(sqlite3 "$DB_PATH" "
+        SELECT DISTINCT s.id FROM sessions s
+        JOIN messages m ON m.session_id = s.id
+        WHERE s.session_type = 'user'
+          AND m.role = 'user'
+          AND m.content_json LIKE '%started in background%'
+          AND s.updated_at > datetime('now', '-24 hours')
+          AND EXISTS (SELECT 1 FROM messages w
+                      WHERE w.session_id = s.id AND w.content_json LIKE '%${WALL_ID}%')
+        ORDER BY s.updated_at DESC LIMIT 1;
+      " 2>/dev/null || true)
+      [[ -n "$wall_scoped" ]] && sid="$wall_scoped"
+    fi
+
+    # Otherwise don't trust AGENT_SESSION_ID if it points at a session with no delegates
+    # (e.g. goose exports a *terminal* session id into shell subprocesses). Pinning such
+    # a session leaves the dashboard stuck on "Spawning delegates..." forever because
+    # find_children() never matches. Fall through to discovery instead.
+    if [[ -z "${wall_scoped:-}" && -n "$sid" ]] && ! session_has_delegates "$sid"; then
       sid=""
     fi
 
