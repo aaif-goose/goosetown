@@ -6,10 +6,14 @@ Central hub for goose work. Multi-agent coordination using skills and async dele
 
 **If you are the main goose session (not a subagent/delegate):**
 ```
-load(source: "goosetown-orchestrator")
+load_skill(name: "goosetown-orchestrator")
 ```
 
 Subagents should NOT load the orchestrator - they receive their role-specific skill from the orchestrator that spawned them.
+
+> Skill loading is `load_skill(name: …)` on goose 1.4x and later. `load(source: …)`
+> in the orchestrator skill is a *different* tool (the summon extension's task-output
+> reader) - do not mix the two up.
 
 ## Directory Structure
 
@@ -63,6 +67,22 @@ bd ready                          # Unblocked issues (start here)
 bd list                           # All open issues
 bd show <id>                      # Full details + dependencies
 ```
+
+## goose version compatibility
+
+- **Skill loading:** `load_skill(name: …)` (goose 1.4x+).
+- **Background delegation:** through goose 1.5x, `delegate(source: …, async: true,
+  instructions: …)` returns immediately and the orchestrator collects the result later
+  with `load(source: "<task id>")` (optionally `cancel: true`). goose removed that
+  detached-task interface in PR #12729 (merged 2026-10-07): `async` is no longer
+  declared - unknown arguments are ignored, so calls do not fail, they just stop
+  behaving - and `load` only reads sources such as recipes and agent instructions.
+  On those versions run delegates as foreground subagents: send two or three
+  `delegate` calls in one message so they still run concurrently, and take their
+  results from the conversation instead of polling task IDs.
+- **Dashboard:** `uvicorn[standard]` pulls in `watchfiles`, which has no wheel for
+  Python 3.14+ and fails to build from source. Pin Python 3.12 in `.python-version`
+  and recreate the environment with `uv venv --python 3.12 && uv sync`.
 
 ## Knowledge Files
 
